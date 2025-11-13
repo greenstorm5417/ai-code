@@ -12,3 +12,8 @@ wheels/
 # Environment variables (contains API keys!)
 .env
 
+# Cached data
+tickerdata/
+
+# Saved models
+models/

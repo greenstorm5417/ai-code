@@ -2,6 +2,7 @@ import os
 from typing import List, Dict, Optional
 import numpy as np
 import pandas as pd
+import torch
 from tqdm import tqdm
 
 from .data import read_tickers, load_minute_bars
@@ -68,6 +69,13 @@ def train_portfolio(
     print(f"Loaded {len(train_data)} stocks for training")
     print(f"Symbols: {list(train_data.keys())}")
     
+    # Detect device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"\nUsing device: {device}")
+    if device == "cuda":
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+    
     # Create environments
     train_env = MultiStockSelectorTraderEnv(
         train_data,
@@ -102,6 +110,7 @@ def train_portfolio(
         eps_start=1.0,
         eps_end=0.1,
         eps_decay_steps=50_000,
+        device=device,
     )
     
     # Training loop
@@ -253,5 +262,21 @@ def train_portfolio(
     
     print(f"Validation: steps={val_steps}, reward={val_reward:.2f}, "
           f"final=${val_final:.2f}, return={val_pct_return:.2f}%")
+    
+    # Save model
+    os.makedirs("models", exist_ok=True)
+    model_path = "models/dqn_portfolio_agent.pt"
+    torch.save({
+        'policy_net_state_dict': agent.policy_net.state_dict(),
+        'target_net_state_dict': agent.target_net.state_dict(),
+        'optimizer_state_dict': agent.optimizer.state_dict(),
+        'state_shape': state_shape,
+        'n_stocks': n_stocks,
+        'size_bins': 5,
+        'symbols': list(train_data.keys()),
+        'train_results': train_results,
+        'val_result': val_result,
+    }, model_path)
+    print(f"\nModel saved to: {model_path}")
     
     return train_results, val_result, agent
